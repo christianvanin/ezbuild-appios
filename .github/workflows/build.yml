@@ -1,0 +1,88 @@
+name: Build iOS IPA (Native Xcode)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Native iOS App
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install CocoaPods (se presente Podfile)
+        run: |
+          if [ -f "Podfile" ]; then
+            pod install
+          elif [ -f "ios/Podfile" ]; then
+            cd ios && pod install
+          fi
+
+      - name: Select Xcode Version
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app || sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Resolve Project & Scheme
+        id: resolve
+        run: |
+          if [ -d *.xcworkspace ] || [ -d ios/*.xcworkspace ]; then
+            WS=$(ls -d *.xcworkspace 2>/dev/null || ls -d ios/*.xcworkspace 2>/dev/null | head -1)
+            TARGET_ARG="-workspace $WS"
+            WORK_DIR=$(dirname "$WS")
+          else
+            PROJ=$(ls -d *.xcodeproj 2>/dev/null || ls -d ios/*.xcodeproj 2>/dev/null | head -1)
+            TARGET_ARG="-project $PROJ"
+            WORK_DIR=$(dirname "$PROJ")
+          fi
+          
+          SCHEME=$(xcodebuild -list $TARGET_ARG -json 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); k=list(d.keys())[0]; print(d[k]['schemes'][0])" 2>/dev/null || echo "")
+          if [ -z "$SCHEME" ]; then
+            SCHEME=$(basename "$TARGET_ARG" | sed 's/\.xcodeproj//' | sed 's/\.xcworkspace//')
+          fi
+
+          echo "target_arg=$TARGET_ARG" >> "$GITHUB_OUTPUT"
+          echo "work_dir=$WORK_DIR" >> "$GITHUB_OUTPUT"
+          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
+          echo "Compiling $TARGET_ARG with Scheme: $SCHEME in dir $WORK_DIR"
+
+      - name: Build iOS (Unsigned)
+        run: |
+          xcodebuild \
+            ${{ steps.resolve.outputs.target_arg }} \
+            -scheme "${{ steps.resolve.outputs.scheme }}" \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            build
+
+      - name: Package Payload into IPA
+        run: |
+          mkdir -p Payload
+          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Errore: Nessun bundle .app trovato!"
+            exit 1
+          fi
+          cp -r "$APP_PATH" Payload/
+          zip -r "SheriffGame-Unsigned.ipa" Payload
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: SheriffGame-Unsigned.ipa
+
+      - name: Publish GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest -y 2>/dev/null || true
+          gh release create latest "SheriffGame-Unsigned.ipa" \
+            --title "Sheriff vs Zombies - Latest iOS Build" \
+            --notes "Compilazione automatica completata con successo tramite EzBuild."

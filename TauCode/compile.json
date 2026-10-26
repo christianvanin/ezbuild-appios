@@ -1,0 +1,5 @@
+{
+  "name": "Compila iOS (Push & Build)",
+  "file": "workflow/compile.sh",
+  "windowsFile": "workflow/compile.bat"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Esegui iOS (Build Remoto)",
+  "file": "workflow/run.sh",
+  "windowsFile": "workflow/run.bat"
+}
