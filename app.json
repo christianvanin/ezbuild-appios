@@ -1,16 +1,28 @@
 {
   "expo": {
-    "name": "CrossPlatformGame",
-    "slug": "cross-platform-game",
+    "name": "ECHO-9",
+    "slug": "echo-9",
     "version": "1.0.0",
-    "orientation": "default",
+    "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.crossplatform.game"
+      "supportsTablet": false,
+      "bundleIdentifier": "com.echo9.submarine",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "ECHO-9 richiede il Bluetooth per connettere le postazioni del sottomarino tra giocatori vicini.",
+        "NSBluetoothPeripheralUsageDescription": "ECHO-9 utilizza il Bluetooth per ospitare la sessione di gioco del sottomarino."
+      }
     },
     "android": {
-      "package": "com.crossplatform.game"
+      "package": "com.echo9.submarine",
+      "permissions": [
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_ADVERTISE",
+        "BLUETOOTH_CONNECT",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro"

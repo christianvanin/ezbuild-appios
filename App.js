@@ -1,88 +1,161 @@
-import React from 'react';
-import { StyleSheet, Text, View, SafeAreaView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView, StyleSheet } from 'react-native';
+import { Colors } from './src/ui/theme/colors';
+import { HomeScreen } from './src/ui/screens/HomeScreen';
+import { LobbyScreen } from './src/ui/screens/LobbyScreen';
+import { GameConsoleScreen } from './src/ui/screens/GameConsoleScreen';
+import { HowToPlayScreen } from './src/ui/screens/HowToPlayScreen';
+import { HostSession } from './src/net/session/HostSession';
+import { LoopbackTransport } from './src/net/transport/LoopbackTransport';
+import { GameState, Role } from './src/net/protocol/types';
+import { createInitialGameState } from './src/game/engine/gameEngine';
 
 export default function App() {
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'lobby' | 'game' | 'how_to_play'>('home');
+  const [gameState, setGameState] = useState<GameState>(createInitialGameState());
+  const [playerRole, setPlayerRole] = useState<Role>('pilot');
+  const [roomCode, setRoomCode] = useState<string>('ECH9');
+
+  const hostSessionRef = useRef<HostSession | null>(null);
+
+  // Pulisci il ciclo timer quando il componente si smonta
+  useEffect(() => {
+    return () => {
+      if (hostSessionRef.current) {
+        hostSessionRef.current.destroy();
+      }
+    };
+  }, []);
+
+  // Avvio Rapido / Solo Test con Bot IA
+  const handleStartSolo = () => {
+    if (hostSessionRef.current) {
+      hostSessionRef.current.destroy();
+    }
+
+    const transport = new LoopbackTransport();
+    const session = new HostSession(transport);
+
+    session.addPlayer({
+      id: 'local_commander',
+      name: 'Comandante',
+      role: 'pilot',
+      isHost: true,
+    });
+
+    // Riempi le altre 3 postazioni con l'IA di bordo
+    session.fillBots();
+
+    session.onStateUpdate(updatedState => {
+      setGameState(updatedState);
+    });
+
+    session.startMission();
+    hostSessionRef.current = session;
+    setPlayerRole('pilot');
+    setCurrentScreen('game');
+  };
+
+  // Creazione Stanza Host BLE
+  const handleHostGame = () => {
+    const randomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+    setRoomCode(randomCode);
+
+    if (hostSessionRef.current) {
+      hostSessionRef.current.destroy();
+    }
+
+    const transport = new LoopbackTransport();
+    const session = new HostSession(transport);
+
+    session.addPlayer({
+      id: 'host_player',
+      name: 'Host Sommergibile',
+      role: playerRole,
+      isHost: true,
+    });
+
+    session.onStateUpdate(updatedState => {
+      setGameState(updatedState);
+    });
+
+    hostSessionRef.current = session;
+    setCurrentScreen('lobby');
+  };
+
+  const handleStartLobbyGame = () => {
+    if (!hostSessionRef.current) return;
+    // Riempi eventuali ruoli vuoti con Bot
+    hostSessionRef.current.fillBots();
+    hostSessionRef.current.startMission();
+    setCurrentScreen('game');
+  };
+
+  const handleDispatchAction = (action: any) => {
+    if (hostSessionRef.current) {
+      hostSessionRef.current.dispatchAction(action);
+    }
+  };
+
+  const handleRestart = () => {
+    if (hostSessionRef.current) {
+      hostSessionRef.current.startMission();
+    }
+  };
+
+  const handleExitToHome = () => {
+    if (hostSessionRef.current) {
+      hostSessionRef.current.destroy();
+      hostSessionRef.current = null;
+    }
+    setCurrentScreen('home');
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.root}>
       <StatusBar style="light" />
-      <View style={styles.card}>
-        <Text style={styles.badge}>READY FOR DEVELOPMENT</Text>
-        <Text style={styles.title}>Nuovo Gioco Multipiattaforma</Text>
-        <Text style={styles.subtitle}>
-          Base React Native (Expo) pronta e pulita per iOS, Android e Web.
-        </Text>
-        <View style={styles.statusBox}>
-          <Text style={styles.statusLabel}>Stato Ambiente:</Text>
-          <Text style={styles.statusValue}>✓ Struttura React Native configurata</Text>
-          <Text style={styles.statusValue}>✓ Build Cloud iOS (GitHub Actions) pronta</Text>
-          <Text style={styles.statusValue}>✓ In attesa delle specifiche del gioco</Text>
-        </View>
-      </View>
+
+      {currentScreen === 'home' && (
+        <HomeScreen
+          onStartSolo={handleStartSolo}
+          onHostGame={handleHostGame}
+          onJoinGame={handleHostGame}
+          onOpenHowToPlay={() => setCurrentScreen('how_to_play')}
+        />
+      )}
+
+      {currentScreen === 'lobby' && (
+        <LobbyScreen
+          roomCode={roomCode}
+          isHost={true}
+          selectedRole={playerRole}
+          onSelectRole={role => setPlayerRole(role)}
+          onStartGame={handleStartLobbyGame}
+          onBack={handleExitToHome}
+        />
+      )}
+
+      {currentScreen === 'how_to_play' && (
+        <HowToPlayScreen onBack={() => setCurrentScreen('home')} />
+      )}
+
+      {currentScreen === 'game' && (
+        <GameConsoleScreen
+          state={gameState}
+          initialRole={playerRole}
+          onDispatchAction={handleDispatchAction}
+          onRestartMission={handleRestart}
+          onExitToHome={handleExitToHome}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: '#0d1117',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 440,
-    backgroundColor: '#161b22',
-    borderRadius: 16,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: '#30363d',
-    alignItems: 'center',
-  },
-  badge: {
-    color: '#58a6ff',
-    backgroundColor: 'rgba(56, 139, 253, 0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    letterSpacing: 1,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#f0f6fc',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#8b949e',
-    textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  statusBox: {
-    width: '100%',
-    backgroundColor: '#0d1117',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#21262d',
-  },
-  statusLabel: {
-    fontSize: 13,
-    color: '#7ee787',
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  statusValue: {
-    fontSize: 13,
-    color: '#c9d1d9',
-    marginVertical: 3,
+    backgroundColor: Colors.abyss,
   },
 });
