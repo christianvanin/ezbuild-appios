@@ -258,7 +258,7 @@ public class GameViewController: UIViewController, SCNSceneRendererDelegate, HUD
                             self.hudView.showToast(message: "🎁 Trovato: \(item.displayName)!")
                         }
 
-                    case .medkitAndAmmo(let hp, let bonusAmmo):
+                    case .medkitAndAmmo(let hp, _):
                         self.playerHealth = min(self.maxPlayerHealth, self.playerHealth + hp)
                         self.inventoryManager.restockAmmo()
                         self.refreshHUDState()

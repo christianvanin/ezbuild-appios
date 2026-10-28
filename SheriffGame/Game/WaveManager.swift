@@ -1,6 +1,6 @@
 import Foundation
 
-public enum WaveState {
+public enum WaveState: Equatable {
     case preparation(secondsRemaining: Float)
     case activeWave
     case waveCompleted
@@ -63,7 +63,7 @@ public class WaveManager {
 
     public func update(deltaTime: Float) {
         switch state {
-        case .preparation(let remaining):
+        case .preparation(_):
             prepTimer -= deltaTime
             if prepTimer <= 0 {
                 startActiveWave()
