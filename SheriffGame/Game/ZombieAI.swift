@@ -2,36 +2,104 @@ import Foundation
 import SceneKit
 import UIKit
 
-enum ZombieState {
+public enum ZombieKind: String, CaseIterable {
+    case walker = "Zombi Walker"
+    case runner = "Zombi Runner"
+    case brute = "Zombi Brute"
+
+    public var baseHealth: Float {
+        switch self {
+        case .walker: return 90.0
+        case .runner: return 55.0
+        case .brute: return 260.0
+        }
+    }
+
+    public var walkSpeed: Float {
+        switch self {
+        case .walker: return 2.3
+        case .runner: return 4.1
+        case .brute: return 1.5
+        }
+    }
+
+    public var attackDamage: Float {
+        switch self {
+        case .walker: return 14.0
+        case .runner: return 18.0
+        case .brute: return 36.0
+        }
+    }
+
+    public var attackCooldown: TimeInterval {
+        switch self {
+        case .walker: return 1.2
+        case .runner: return 0.8
+        case .brute: return 1.8
+        }
+    }
+
+    public var hitboxRadius: Float {
+        switch self {
+        case .walker: return 0.65
+        case .runner: return 0.55
+        case .brute: return 0.95
+        }
+    }
+
+    public var modelName: String {
+        switch self {
+        case .walker: return "zombie_walker"
+        case .runner: return "zombie_runner"
+        case .brute: return "zombie_brute"
+        }
+    }
+
+    public var goldReward: Int {
+        switch self {
+        case .walker: return 15
+        case .runner: return 25
+        case .brute: return 60
+        }
+    }
+}
+
+public enum ZombieState {
     case patrol
     case chase
     case attack
     case dead
 }
 
-class ZombieEntity {
-    let node: SCNNode
-    var health: Float = 100.0
-    var isDead: Bool = false
-    var state: ZombieState = .patrol
+public class ZombieEntity {
+    public let node: SCNNode
+    public let kind: ZombieKind
+    public var health: Float
+    public var isDead: Bool = false
+    public var state: ZombieState = .patrol
 
-    var walkSpeed: Float
-    let detectionRadius: Float = 22.0
-    let attackRadius: Float = 1.7
-    let attackDamage: Float = 14.0
+    public let walkSpeed: Float
+    public let detectionRadius: Float
+    public let attackRadius: Float
+    public let attackDamage: Float
 
     private var lastAttackTime: TimeInterval = 0
     private var patrolTarget: SCNVector3
     private var patrolTimer: Float = 0
 
-    init(node: SCNNode, startPos: SCNVector3, isFast: Bool = false) {
+    public init(node: SCNNode, startPos: SCNVector3, kind: ZombieKind) {
         self.node = node
         self.node.position = startPos
-        self.walkSpeed = isFast ? 3.5 : 2.2
+        self.kind = kind
+        self.health = kind.baseHealth
+        self.walkSpeed = kind.walkSpeed
+        self.detectionRadius = kind == .runner ? 28.0 : 22.0
+        self.attackRadius = kind == .brute ? 2.2 : 1.7
+        self.attackDamage = kind.attackDamage
         self.patrolTarget = startPos
     }
 
-    func update(playerPosition: SCNVector3, deltaTime: Float, onAttackPlayer: ((Float) -> Void)?) {
+    public func update(playerPosition: SCNVector3, deltaTime: Float, onAttackPlayer: ((Float) -> Void)?) {
         guard !isDead else { return }
 
         let dx = playerPosition.x - node.position.x
@@ -43,7 +111,7 @@ class ZombieEntity {
             state = .attack
         } else if distToPlayer < detectionRadius {
             state = .chase
-        } else if state == .chase && distToPlayer > detectionRadius * 1.5 {
+        } else if state == .chase && distToPlayer > detectionRadius * 1.6 {
             state = .patrol
         }
 
@@ -52,11 +120,9 @@ class ZombieEntity {
             updatePatrol(deltaTime: deltaTime)
 
         case .chase:
-            // Rotazione verso il giocatore (orientamento Y)
             let angle = atan2(dx, dz)
             node.eulerAngles = SCNVector3(0, angle, 0)
 
-            // Avanzamento
             let moveStep = walkSpeed * deltaTime
             let stepX = sin(angle) * moveStep
             let stepZ = cos(angle) * moveStep
@@ -67,11 +133,13 @@ class ZombieEntity {
             node.eulerAngles = SCNVector3(0, angle, 0)
 
             let now = ProcessInfo.processInfo.systemUptime
-            if now - lastAttackTime > 1.2 {
+            if now - lastAttackTime > kind.attackCooldown {
                 lastAttackTime = now
-                // Animazione attacco a scatto in avanti
-                let strike = SCNAction.moveBy(x: CGFloat(sin(angle) * 0.3), y: 0, z: CGFloat(cos(angle) * 0.3), duration: 0.1)
-                let back = SCNAction.moveBy(x: CGFloat(-sin(angle) * 0.3), y: 0, z: CGFloat(-cos(angle) * 0.3), duration: 0.25)
+
+                // Scatto d'attacco in avanti in base alla stazza
+                let lunge = kind == .runner ? 0.5 : 0.3
+                let strike = SCNAction.moveBy(x: CGFloat(sin(angle) * Float(lunge)), y: 0, z: CGFloat(cos(angle) * Float(lunge)), duration: 0.1)
+                let back = SCNAction.moveBy(x: CGFloat(-sin(angle) * Float(lunge)), y: 0, z: CGFloat(-cos(angle) * Float(lunge)), duration: 0.25)
                 node.runAction(SCNAction.sequence([strike, back]))
                 onAttackPlayer?(attackDamage)
             }
@@ -84,8 +152,8 @@ class ZombieEntity {
     private func updatePatrol(deltaTime: Float) {
         patrolTimer -= deltaTime
         if patrolTimer <= 0 {
-            patrolTimer = Float.random(in: 4.0...8.0)
-            let offset = Float.random(in: -10.0...10.0)
+            patrolTimer = Float.random(in: 4.0...7.0)
+            let offset = Float.random(in: -12.0...12.0)
             patrolTarget = SCNVector3(node.position.x + offset, 0, node.position.z + offset)
         }
 
@@ -96,7 +164,7 @@ class ZombieEntity {
         if dist > 0.5 {
             let angle = atan2(dx, dz)
             node.eulerAngles = SCNVector3(0, angle, 0)
-            let speed = walkSpeed * 0.4 * deltaTime
+            let speed = walkSpeed * 0.45 * deltaTime
             node.position = SCNVector3(
                 node.position.x + sin(angle) * speed,
                 0,
@@ -105,16 +173,16 @@ class ZombieEntity {
         }
     }
 
-    func takeDamage(amount: Float) -> Bool {
+    public func takeDamage(amount: Float) -> Bool {
         guard !isDead else { return false }
         health -= amount
 
-        // Lampeggio rosso di impatto
-        node.childNodes.forEach { child in
+        // Lampeggio di impatto su tutti i materiali
+        node.enumerateChildNodes { child, _ in
             child.geometry?.firstMaterial?.emission.contents = UIColor.red
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.node.childNodes.forEach { child in
+            self?.node.enumerateChildNodes { child, _ in
                 child.geometry?.firstMaterial?.emission.contents = UIColor.black
             }
         }
@@ -130,116 +198,128 @@ class ZombieEntity {
         isDead = true
         state = .dead
 
-        // Animazione caduta all'indietro e dissolvenza
-        let fallBack = SCNAction.rotateBy(x: CGFloat(-Float.pi / 2), y: 0, z: 0, duration: 0.4)
-        let sink = SCNAction.moveBy(x: 0, y: -0.8, z: 0, duration: 1.0)
-        let fade = SCNAction.fadeOut(duration: 1.0)
+        let fallBack = SCNAction.rotateBy(x: CGFloat(-Float.pi / 2), y: 0, z: 0, duration: 0.35)
+        let sink = SCNAction.moveBy(x: 0, y: -0.9, z: 0, duration: 0.8)
+        let fade = SCNAction.fadeOut(duration: 0.8)
         let remove = SCNAction.removeFromParentNode()
 
         let sequence = SCNAction.sequence([fallBack, SCNAction.group([sink, fade]), remove])
         node.runAction(sequence)
     }
 
-    func alertToPlayerPosition() {
+    public func alertToPlayer() {
         if !isDead && state == .patrol {
             state = .chase
         }
     }
 }
 
-class ZombieManager {
+public class ZombieManager {
     private let scene: SCNScene
-    var zombies: [ZombieEntity] = []
+    public private(set) var zombies: [ZombieEntity] = []
 
-    init(scene: SCNScene) {
+    public init(scene: SCNScene) {
         self.scene = scene
-        spawnInitialZombies()
     }
 
-    private func spawnInitialZombies() {
-        let spawnPoints: [(x: Float, z: Float, isFast: Bool)] = [
-            (-15, -8, false),
-            (12, -12, false),
-            (-32, -5, true),
-            (30, -8, false),
-            (-8, -32, false),
-            (18, -38, true),
-            (-22, 10, false),
-            (24, 15, false),
-            (5, 28, false),
-            (-28, 30, true),
-            (28, 32, false),
-            (-12, -45, true),
-            (10, -48, false),
-            (0, -25, false)
-        ]
+    public func spawnZombies(kind: ZombieKind, count: Int, playerPosition: SCNVector3) {
+        for _ in 0..<count {
+            let angle = Float.random(in: 0...(Float.pi * 2))
+            let dist = Float.random(in: 25.0...48.0)
+            let sx = playerPosition.x + cos(angle) * dist
+            let sz = playerPosition.z + sin(angle) * dist
 
-        for pt in spawnPoints {
-            let zombieNode = loadZombieNode()
-            let entity = ZombieEntity(node: zombieNode, startPos: SCNVector3(pt.x, 0, pt.z), isFast: pt.isFast)
-            scene.rootNode.addChildNode(zombieNode)
+            // Clampa entro il confine della mappa
+            let clampedX = max(-70.0, min(70.0, sx))
+            let clampedZ = max(-70.0, min(70.0, sz))
+
+            let zNode = loadZombieNode(named: kind.modelName)
+            let entity = ZombieEntity(node: zNode, startPos: SCNVector3(clampedX, 0, clampedZ), kind: kind)
+            scene.rootNode.addChildNode(zNode)
             zombies.append(entity)
         }
     }
 
-    func update(playerPosition: SCNVector3, deltaTime: Float, onAttackPlayer: ((Float) -> Void)?) {
+    public func update(playerPosition: SCNVector3, deltaTime: Float, onAttackPlayer: ((Float) -> Void)?) {
         for zombie in zombies {
             zombie.update(playerPosition: playerPosition, deltaTime: deltaTime, onAttackPlayer: onAttackPlayer)
         }
-        // Rimuove zombi morti rimossi dalla scena
         zombies.removeAll { $0.isDead && $0.node.parent == nil }
     }
 
-    func alertAllZombiesInRange(center: SCNVector3, radius: Float) {
+    public func alertAllZombiesInRange(center: SCNVector3, radius: Float) {
         for zombie in zombies {
             let dx = zombie.node.position.x - center.x
             let dz = zombie.node.position.z - center.z
             if sqrt(dx * dx + dz * dz) < radius {
-                zombie.alertToPlayerPosition()
+                zombie.alertToPlayer()
             }
         }
     }
 
-    func checkRayHit(from start: SCNVector3, direction: SCNVector3, maxDistance: Float, damage: Float) -> Bool {
+    public func checkRayHit(from start: SCNVector3, direction: SCNVector3, maxDistance: Float, damage: Float) -> (hit: Bool, killed: Bool, kind: ZombieKind?) {
         var closestZombie: ZombieEntity?
         var minDistance: Float = maxDistance
 
         for zombie in zombies where !zombie.isDead {
-            // Sfera di collisione attorno al torace dello zombi
             let zombieCenter = SCNVector3(zombie.node.position.x, 1.2, zombie.node.position.z)
             let toZombie = SCNVector3(zombieCenter.x - start.x, zombieCenter.y - start.y, zombieCenter.z - start.z)
 
-            // Proiezione del vettore sul raggio di sparo
             let dot = toZombie.x * direction.x + toZombie.y * direction.y + toZombie.z * direction.z
             if dot > 0.5 && dot < minDistance {
                 let projPoint = SCNVector3(start.x + direction.x * dot, start.y + direction.y * dot, start.z + direction.z * dot)
                 let perpDist = sqrt(pow(projPoint.x - zombieCenter.x, 2) + pow(projPoint.y - zombieCenter.y, 2) + pow(projPoint.z - zombieCenter.z, 2))
 
-                if perpDist < 0.65 { // Raggio hitbox zombi
+                if perpDist < zombie.kind.hitboxRadius {
                     minDistance = dot
                     closestZombie = zombie
                 }
             }
         }
 
-        if let hit = closestZombie {
-            _ = hit.takeDamage(amount: damage)
-            return true
+        if let hitZombie = closestZombie {
+            let wasKilled = hitZombie.takeDamage(amount: damage)
+            return (true, wasKilled, hitZombie.kind)
         }
-        return false
+        return (false, false, nil)
     }
 
-    private func loadZombieNode() -> SCNNode {
-        if let url = Bundle.main.url(forResource: "zombie", withExtension: "obj"),
-           let scene = try? SCNScene(url: url, options: [.checkConsistency: false]) {
-            let wrapper = SCNNode()
-            for child in scene.rootNode.childNodes {
-                wrapper.addChildNode(child.clone())
+    public func applyExplosion(center: SCNVector3, radius: Float, maxDamage: Float) -> [(zombie: ZombieEntity, killed: Bool)] {
+        var results: [(ZombieEntity, Bool)] = []
+        for zombie in zombies where !zombie.isDead {
+            let dx = zombie.node.position.x - center.x
+            let dz = zombie.node.position.z - center.z
+            let dist = sqrt(dx * dx + dz * dz)
+            if dist < radius {
+                let falloff = 1.0 - (dist / radius)
+                let damage = maxDamage * max(0.2, falloff)
+                let killed = zombie.takeDamage(amount: damage)
+                results.append((zombie, killed))
             }
-            return wrapper
         }
-        let box = SCNBox(width: 0.5, height: 1.8, length: 0.5, chamferRadius: 0)
-        box.firstMaterial?.diffuse.contents = UIColor.green
+        return results
+    }
+
+    public func clearAllZombies() {
+        for z in zombies {
+            z.node.removeFromParentNode()
+        }
+        zombies.removeAll()
+    }
+
+    private func loadZombieNode(named name: String) -> SCNNode {
+        if let url = Bundle.main.url(forResource: name, withExtension: "obj") {
+            if let objScene = try? SCNScene(url: url, options: [.checkConsistency: false]) {
+                let wrapper = SCNNode()
+                for child in objScene.rootNode.childNodes {
+                    wrapper.addChildNode(child.clone())
+                }
+                return wrapper
+            }
+        }
+        // Fallback voxel
+        let box = SCNBox(width: 0.6, height: 1.8, length: 0.6, chamferRadius: 0)
+        box.firstMaterial?.diffuse.contents = UIColor.systemGreen
         return SCNNode(geometry: box)
     }
 }

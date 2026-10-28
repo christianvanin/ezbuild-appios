@@ -16,6 +16,8 @@ SWIFT_FILES = [
     ("FirstPersonController.swift", "Game/FirstPersonController.swift"),
     ("ForestScene.swift", "Game/ForestScene.swift"),
     ("WeaponSystem.swift", "Game/WeaponSystem.swift"),
+    ("InventoryManager.swift", "Game/InventoryManager.swift"),
+    ("WaveManager.swift", "Game/WaveManager.swift"),
     ("ZombieAI.swift", "Game/ZombieAI.swift"),
     ("ChestManager.swift", "Game/ChestManager.swift"),
     ("EscapeGameMode.swift", "Game/EscapeGameMode.swift"),
@@ -27,13 +29,25 @@ MODEL_FILES = [
     "cabin.obj", "cabin.mtl",
     "chest_base.obj", "chest_base.mtl",
     "chest_lid.obj", "chest_lid.mtl",
+    "fence_segment.obj", "fence_segment.mtl",
+    "fps_dynamite.obj", "fps_dynamite.mtl",
     "fps_revolver.obj", "fps_revolver.mtl",
+    "fps_rifle.obj", "fps_rifle.mtl",
     "fps_shotgun.obj", "fps_shotgun.mtl",
+    "fps_sniper.obj", "fps_sniper.mtl",
     "gate.obj", "gate.mtl",
+    "grass_clump.obj", "grass_clump.mtl",
+    "graveyard_tomb.obj", "graveyard_tomb.mtl",
     "key.obj", "key.mtl",
+    "mine_entrance.obj", "mine_entrance.mtl",
     "pine_tree.obj", "pine_tree.mtl",
     "rock.obj", "rock.mtl",
-    "zombie.obj", "zombie.mtl"
+    "saloon.obj", "saloon.mtl",
+    "sheriff_office.obj", "sheriff_office.mtl",
+    "zombie.obj", "zombie.mtl",
+    "zombie_brute.obj", "zombie_brute.mtl",
+    "zombie_runner.obj", "zombie_runner.mtl",
+    "zombie_walker.obj", "zombie_walker.mtl"
 ]
 
 def generate_pbxproj():

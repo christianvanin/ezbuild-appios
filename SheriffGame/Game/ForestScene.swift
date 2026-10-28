@@ -2,187 +2,265 @@ import Foundation
 import SceneKit
 import UIKit
 
-class ForestScene {
-    let scene: SCNScene
-    var cabinNodes: [SCNNode] = []
-    var chestLocations: [(position: SCNVector3, cabinIndex: Int)] = []
-    var gateNode: SCNNode?
+public class ForestScene {
+    public let scene: SCNScene
+    public var chestLocations: [(position: SCNVector3, id: Int)] = []
+    public var pointOfInterests: [(name: String, position: SCNVector3)] = []
 
-    init() {
+    public init() {
         scene = SCNScene()
         setupAtmosphereAndLighting()
-        buildTerrain()
-        buildPerimeterFence()
-        placeCabins()
-        placeForestVegetation()
-        placeExitGate()
+        buildTerrainAndRoads()
+        placeWesternTown()
+        placeGraveyardAndMine()
+        placeDenseVegetationAndGrass()
+        placeChests()
     }
 
     private func setupAtmosphereAndLighting() {
-        // Nebbia atmosferica notturna
-        let nightColor = UIColor(red: 0.03, green: 0.05, blue: 0.08, alpha: 1.0)
-        scene.background.contents = nightColor
-        scene.fogColor = nightColor
-        scene.fogStartDistance = 6.0
-        scene.fogEndDistance = 55.0
+        // Cielo notturno del Far West e nebbia atmosferica
+        let nightSky = UIColor(red: 0.04, green: 0.06, blue: 0.10, alpha: 1.0)
+        scene.background.contents = nightSky
+        scene.fogColor = nightSky
+        scene.fogStartDistance = 8.0
+        scene.fogEndDistance = 75.0
         scene.fogDensityExponent = 1.0
 
-        // Luce ambientale fioca (notte profonda)
+        // Luce ambientale lunare notturna
         let ambientLight = SCNLight()
         ambientLight.type = .ambient
-        ambientLight.color = UIColor(red: 0.08, green: 0.10, blue: 0.16, alpha: 1.0)
-        ambientLight.intensity = 180
+        ambientLight.color = UIColor(red: 0.10, green: 0.12, blue: 0.18, alpha: 1.0)
+        ambientLight.intensity = 240
 
         let ambientNode = SCNNode()
         ambientNode.light = ambientLight
         scene.rootNode.addChildNode(ambientNode)
 
-        // Luce lunare azzurro-argentata (Moonlight)
+        // Luce lunare azzurro-argentata (Moonlight) con ombre
         let moonLight = SCNLight()
         moonLight.type = .directional
-        moonLight.color = UIColor(red: 0.45, green: 0.55, blue: 0.75, alpha: 1.0)
-        moonLight.intensity = 450
+        moonLight.color = UIColor(red: 0.50, green: 0.60, blue: 0.82, alpha: 1.0)
+        moonLight.intensity = 550
         moonLight.castsShadow = true
         moonLight.shadowMode = .deferred
         moonLight.shadowSampleCount = 4
 
         let moonNode = SCNNode()
         moonNode.light = moonLight
-        moonNode.eulerAngles = SCNVector3(math_radians(-55), math_radians(35), 0)
+        moonNode.eulerAngles = SCNVector3(math_radians(-50), math_radians(40), 0)
         scene.rootNode.addChildNode(moonNode)
     }
 
-    private func buildTerrain() {
-        // Terreno forestale calpestabile 120m x 120m
+    private func buildTerrainAndRoads() {
+        // Terreno principale 160m x 160m
         let floorGeo = SCNFloor()
-        floorGeo.reflectivity = 0.02
-        floorGeo.firstMaterial?.diffuse.contents = UIColor(red: 0.10, green: 0.14, blue: 0.09, alpha: 1.0)
-        floorGeo.firstMaterial?.roughness.contents = 0.95
+        floorGeo.reflectivity = 0.01
+
+        let grassMat = SCNMaterial()
+        grassMat.lightingModel = .physicallyBased
+        grassMat.diffuse.contents = UIColor(red: 0.12, green: 0.18, blue: 0.10, alpha: 1.0)
+        grassMat.roughness.contents = 0.95
+        grassMat.metalness.contents = 0.0
+        floorGeo.materials = [grassMat]
 
         let floorNode = SCNNode(geometry: floorGeo)
         floorNode.name = "Ground"
         floorNode.physicsBody = SCNPhysicsBody(type: .static, shape: nil)
         scene.rootNode.addChildNode(floorNode)
-    }
 
-    private func buildPerimeterFence() {
-        // Recinzione perimetrale per delimitare l'area di gioco (-55 a +55)
-        let fenceMaterial = SCNMaterial()
-        fenceMaterial.diffuse.contents = UIColor(red: 0.25, green: 0.16, blue: 0.09, alpha: 1.0)
+        // Sentiero in terra battuta principale da Sud a Nord e incrocio a Est/Ovest
+        let dirtMat = SCNMaterial()
+        dirtMat.lightingModel = .physicallyBased
+        dirtMat.diffuse.contents = UIColor(red: 0.28, green: 0.20, blue: 0.12, alpha: 1.0)
+        dirtMat.roughness.contents = 0.9
 
-        let boundarySize: Float = 55.0
-        let postHeight: Float = 3.0
+        let mainRoadGeo = SCNPlane(width: 8.0, height: 140.0)
+        mainRoadGeo.materials = [dirtMat]
+        let mainRoad = SCNNode(geometry: mainRoadGeo)
+        mainRoad.position = SCNVector3(0, 0.02, 0)
+        mainRoad.eulerAngles = SCNVector3(math_radians(-90), 0, 0)
+        scene.rootNode.addChildNode(mainRoad)
+
+        let crossRoadGeo = SCNPlane(width: 100.0, height: 7.0)
+        crossRoadGeo.materials = [dirtMat]
+        let crossRoad = SCNNode(geometry: crossRoadGeo)
+        crossRoad.position = SCNVector3(0, 0.03, -12.0)
+        crossRoad.eulerAngles = SCNVector3(math_radians(-90), 0, 0)
+        scene.rootNode.addChildNode(crossRoad)
+
+        // Recinzione perimetrale della mappa a 75 metri dal centro
+        let boundarySize: Float = 75.0
+        let fenceMat = SCNMaterial()
+        fenceMat.diffuse.contents = UIColor(red: 0.24, green: 0.15, blue: 0.08, alpha: 1.0)
 
         for edge in [(-boundarySize, 0, Float.pi/2), (boundarySize, 0, Float.pi/2), (0, -boundarySize, 0), (0, boundarySize, 0)] {
-            let wallBox = SCNBox(width: 110, height: CGFloat(postHeight), length: 0.8, chamferRadius: 0)
-            wallBox.firstMaterial = fenceMaterial
-
+            let wallBox = SCNBox(width: 150, height: 3.0, length: 0.8, chamferRadius: 0)
+            wallBox.materials = [fenceMat]
             let wallNode = SCNNode(geometry: wallBox)
-            wallNode.position = SCNVector3(edge.0, postHeight * 0.5, edge.1)
+            wallNode.position = SCNVector3(edge.0, 1.5, edge.1)
             wallNode.eulerAngles = SCNVector3(0, edge.2, 0)
-            wallNode.physicsBody = SCNPhysicsBody(type: .static, shape: nil)
             scene.rootNode.addChildNode(wallNode)
         }
     }
 
-    private func placeCabins() {
-        let cabinCoords: [(x: Float, z: Float, rot: Float)] = [
-            (-26, -16, 0.2),  // Cabina 1 (Contiene Shotgun)
-            (26, -20, -0.3),  // Cabina 2 (Contiene Chiave #1 + Medkit)
-            (-18, 22, 1.5)    // Cabina 3 (Contiene Chiave #2 e #3)
+    private func placeWesternTown() {
+        // SALOON a sinistra della strada (X = -18, Z = -12)
+        let saloon = loadModel(named: "saloon")
+        saloon.position = SCNVector3(-18, 0, -12)
+        saloon.eulerAngles = SCNVector3(0, math_radians(90), 0)
+        scene.rootNode.addChildNode(saloon)
+        pointOfInterests.append(("Saloon", saloon.position))
+
+        // Lanterna calda ad olio fuori dal Saloon
+        attachLantern(to: saloon, localPos: SCNVector3(0, 2.8, 4.8), intensity: 900)
+
+        // UFFICIO DELLO SCERIFFO a destra della strada (X = 18, Z = -12)
+        let sheriffOffice = loadModel(named: "sheriff_office")
+        sheriffOffice.position = SCNVector3(18, 0, -12)
+        sheriffOffice.eulerAngles = SCNVector3(0, math_radians(-90), 0)
+        scene.rootNode.addChildNode(sheriffOffice)
+        pointOfInterests.append(("Ufficio Sceriffo", sheriffOffice.position))
+
+        attachLantern(to: sheriffOffice, localPos: SCNVector3(0, 2.5, 4.2), intensity: 850)
+
+        // Staccionate lungo la strada cittadina
+        for z in stride(from: Float(-35), through: Float(20), by: Float(6.0)) {
+            if abs(z + 12.0) < 8.0 { continue } // Varco per gli ingressi degli edifici
+            let fenceL = loadModel(named: "fence_segment")
+            fenceL.position = SCNVector3(-4.5, 0, z)
+            fenceL.eulerAngles = SCNVector3(0, math_radians(90), 0)
+            scene.rootNode.addChildNode(fenceL)
+
+            let fenceR = loadModel(named: "fence_segment")
+            fenceR.position = SCNVector3(4.5, 0, z)
+            fenceR.eulerAngles = SCNVector3(0, math_radians(90), 0)
+            scene.rootNode.addChildNode(fenceR)
+        }
+    }
+
+    private func placeGraveyardAndMine() {
+        // CIMITERO ABBANDONATO a Nord-Est (X = 36, Z = -45)
+        let graveyard = loadModel(named: "graveyard_tomb")
+        graveyard.position = SCNVector3(36, 0, -45)
+        graveyard.eulerAngles = SCNVector3(0, math_radians(-30), 0)
+        scene.rootNode.addChildNode(graveyard)
+        pointOfInterests.append(("Cimitero Maledetto", graveyard.position))
+
+        // Nebbia azzurrina e luce spettrale nel cimitero
+        let cryptLight = SCNLight()
+        cryptLight.type = .omni
+        cryptLight.color = UIColor(red: 0.3, green: 0.8, blue: 0.9, alpha: 1.0)
+        cryptLight.intensity = 400
+        cryptLight.attenuationEndDistance = 14.0
+        let cLightNode = SCNNode()
+        cLightNode.light = cryptLight
+        cLightNode.position = SCNVector3(36, 1.2, -45)
+        scene.rootNode.addChildNode(cLightNode)
+
+        // MINIERA D'ORO ABBANDONATA a Nord-Ovest (X = -38, Z = -50)
+        let mine = loadModel(named: "mine_entrance")
+        mine.position = SCNVector3(-38, 0, -50)
+        mine.eulerAngles = SCNVector3(0, math_radians(25), 0)
+        scene.rootNode.addChildNode(mine)
+        pointOfInterests.append(("Miniera d'Oro", mine.position))
+
+        attachLantern(to: mine, localPos: SCNVector3(0, 3.2, 2.5), intensity: 750)
+    }
+
+    private func placeDenseVegetationAndGrass() {
+        var rng = PseudoRNG(seed: 12345)
+
+        // 1. Erba Volumetrica 3D Densamente distribuita (oltre 240 ciuffi d'erba 3D)
+        for _ in 0..<260 {
+            let gx = rng.nextFloat(min: -65, max: 65)
+            let gz = rng.nextFloat(min: -65, max: 65)
+
+            // Evita di spawnare in mezzo alla strada battuta o dentro gli edifici principali
+            if abs(gx) < 4.5 || (abs(gz + 12.0) < 6.0 && abs(gx) < 25.0) {
+                continue
+            }
+
+            let grass = loadModel(named: "grass_clump")
+            let scale = rng.nextFloat(min: 0.7, max: 1.4)
+            grass.scale = SCNVector3(scale, scale * rng.nextFloat(min: 0.8, max: 1.2), scale)
+            grass.position = SCNVector3(gx, 0, gz)
+            grass.eulerAngles = SCNVector3(0, rng.nextFloat(min: 0, max: Float.pi * 2), 0)
+            scene.rootNode.addChildNode(grass)
+        }
+
+        // 2. Alberi di Pino Voxel HD (circa 120 pini)
+        for _ in 0..<130 {
+            let tx = rng.nextFloat(min: -68, max: 68)
+            let tz = rng.nextFloat(min: -68, max: 68)
+
+            if abs(tx) < 6.0 || (abs(tz + 12.0) < 12.0 && abs(tx) < 28.0) || (abs(tx - 36.0) < 10.0 && abs(tz + 45.0) < 10.0) || (abs(tx + 38.0) < 12.0 && abs(tz + 50.0) < 12.0) {
+                continue
+            }
+
+            let tree = loadModel(named: "pine_tree")
+            let scale = rng.nextFloat(min: 0.85, max: 1.5)
+            tree.scale = SCNVector3(scale, scale, scale)
+            tree.position = SCNVector3(tx, 0, tz)
+            tree.eulerAngles = SCNVector3(0, rng.nextFloat(min: 0, max: Float.pi * 2), 0)
+            scene.rootNode.addChildNode(tree)
+        }
+
+        // 3. Rocce PBR (45 rocce)
+        for _ in 0..<45 {
+            let rx = rng.nextFloat(min: -65, max: 65)
+            let rz = rng.nextFloat(min: -65, max: 65)
+
+            if abs(rx) < 5.0 || (abs(rz + 12.0) < 8.0 && abs(rx) < 25.0) {
+                continue
+            }
+
+            let rock = loadModel(named: "rock")
+            let scale = rng.nextFloat(min: 0.8, max: 1.8)
+            rock.scale = SCNVector3(scale, scale * 0.7, scale)
+            rock.position = SCNVector3(rx, 0, rz)
+            rock.eulerAngles = SCNVector3(0, rng.nextFloat(min: 0, max: Float.pi * 2), 0)
+            scene.rootNode.addChildNode(rock)
+        }
+    }
+
+    private func placeChests() {
+        let chestCoords: [(x: Float, z: Float, id: Int)] = [
+            (-18, -4, 1),   // Saloon (dietro le botti)
+            (18, -4, 2),    // Ufficio Sceriffo (nella cella)
+            (36, -38, 3),   // Cimitero
+            (-38, -42, 4)   // Ingresso Miniera
         ]
 
-        for (idx, coord) in cabinCoords.enumerated() {
-            let cabinNode = loadModelNode(named: "cabin")
-            cabinNode.name = "Cabin_\(idx + 1)"
-            cabinNode.position = SCNVector3(coord.x, 0, coord.z)
-            cabinNode.eulerAngles = SCNVector3(0, coord.rot, 0)
-
-            // Lanterna calda all'interno della cabina
-            let lanternLight = SCNLight()
-            lanternLight.type = .omni
-            lanternLight.color = UIColor(red: 1.0, green: 0.70, blue: 0.30, alpha: 1.0)
-            lanternLight.intensity = 800
-            lanternLight.attenuationEndDistance = 10.0
-
-            let lanternNode = SCNNode()
-            lanternNode.light = lanternLight
-            lanternNode.position = SCNVector3(0, 2.2, 0)
-            cabinNode.addChildNode(lanternNode)
-
-            scene.rootNode.addChildNode(cabinNode)
-            cabinNodes.append(cabinNode)
-
-            // Posizione del baule: all'interno della cabina sul tavolo (y = 0.7, z = 1.9 locale)
-            let chestWorldPos = cabinNode.convertPosition(SCNVector3(0, 0.72, 1.9), to: nil)
-            chestLocations.append((chestWorldPos, idx + 1))
+        for coord in chestCoords {
+            chestLocations.append((SCNVector3(coord.x, 0.35, coord.z), coord.id))
         }
     }
 
-    private func placeForestVegetation() {
-        // Posizionamento procedurale di pini e rocce attorno alle radure
-        var rng = PseudoRNG(seed: 42)
+    private func attachLantern(to parent: SCNNode, localPos: SCNVector3, intensity: CGFloat) {
+        let light = SCNLight()
+        light.type = .omni
+        light.color = UIColor(red: 1.0, green: 0.75, blue: 0.35, alpha: 1.0)
+        light.intensity = intensity
+        light.attenuationStartDistance = 0.5
+        light.attenuationEndDistance = 14.0
 
-        for _ in 0..<110 {
-            let x = rng.nextFloat(min: -50, max: 50)
-            let z = rng.nextFloat(min: -50, max: 50)
+        let node = SCNNode()
+        node.light = light
+        node.position = localPos
+        parent.addChildNode(node)
 
-            // Evita spawn dentro o subito vicino alle cabine
-            if isNearCabin(x: x, z: z, radius: 8.0) || isNearCenter(x: x, z: z, radius: 6.0) || (abs(x) < 5.0 && z < -40.0) {
-                continue
-            }
-
-            let treeNode = loadModelNode(named: "pine_tree")
-            let scale = rng.nextFloat(min: 0.85, max: 1.4)
-            treeNode.scale = SCNVector3(scale, scale, scale)
-            treeNode.position = SCNVector3(x, 0, z)
-            treeNode.eulerAngles = SCNVector3(0, rng.nextFloat(min: 0, max: Float.pi * 2), 0)
-            scene.rootNode.addChildNode(treeNode)
+        // Effetto fiamma tremolante realistico
+        let flickerUp = SCNAction.customAction(duration: 0.15) { n, _ in
+            n.light?.intensity = intensity + CGFloat.random(in: -100...120)
         }
-
-        for _ in 0..<35 {
-            let x = rng.nextFloat(min: -48, max: 48)
-            let z = rng.nextFloat(min: -48, max: 48)
-            if isNearCabin(x: x, z: z, radius: 7.0) || isNearCenter(x: x, z: z, radius: 5.0) {
-                continue
-            }
-
-            let rockNode = loadModelNode(named: "rock")
-            let scale = rng.nextFloat(min: 0.7, max: 1.5)
-            rockNode.scale = SCNVector3(scale, scale, scale)
-            rockNode.position = SCNVector3(x, 0, z)
-            rockNode.eulerAngles = SCNVector3(0, rng.nextFloat(min: 0, max: Float.pi * 2), 0)
-            scene.rootNode.addChildNode(rockNode)
+        let flickerDown = SCNAction.customAction(duration: 0.18) { n, _ in
+            n.light?.intensity = intensity - CGFloat.random(in: -80...100)
         }
+        node.runAction(SCNAction.repeatForever(SCNAction.sequence([flickerUp, flickerDown])))
     }
 
-    private func placeExitGate() {
-        // Cancello di fuga a Nord (Z = -53, X = 0)
-        let gate = loadModelNode(named: "gate")
-        gate.name = "ExitGate"
-        gate.position = SCNVector3(0, 0, -53.5)
-        gate.eulerAngles = SCNVector3(0, 0, 0)
-        scene.rootNode.addChildNode(gate)
-        self.gateNode = gate
-    }
-
-    private func isNearCabin(x: Float, z: Float, radius: Float) -> Bool {
-        for cabin in cabinNodes {
-            let dx = x - cabin.position.x
-            let dz = z - cabin.position.z
-            if sqrt(dx*dx + dz*dz) < radius {
-                return true
-            }
-        }
-        return false
-    }
-
-    private func isNearCenter(x: Float, z: Float, radius: Float) -> Bool {
-        return sqrt(x*x + z*z) < radius
-    }
-
-    func loadModelNode(named modelName: String) -> SCNNode {
-        if let url = Bundle.main.url(forResource: modelName, withExtension: "obj") {
+    public func loadModel(named name: String) -> SCNNode {
+        if let url = Bundle.main.url(forResource: name, withExtension: "obj") {
             if let objScene = try? SCNScene(url: url, options: [.checkConsistency: false]) {
                 let wrapper = SCNNode()
                 for child in objScene.rootNode.childNodes {
@@ -191,9 +269,8 @@ class ForestScene {
                 return wrapper
             }
         }
-        // Fallback procedurale di riserva
-        let fallbackBox = SCNBox(width: 1.0, height: 1.0, length: 1.0, chamferRadius: 0.05)
-        return SCNNode(geometry: fallbackBox)
+        let box = SCNBox(width: 1.0, height: 1.0, length: 1.0, chamferRadius: 0.05)
+        return SCNNode(geometry: box)
     }
 }
 
@@ -201,7 +278,6 @@ private func math_radians(_ deg: Float) -> Float {
     return deg * Float.pi / 180.0
 }
 
-// Generatore pseudo-casuale deterministico leggero
 private struct PseudoRNG {
     private var state: UInt64
     init(seed: UInt64) { self.state = seed }

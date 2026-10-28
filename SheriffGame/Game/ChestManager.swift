@@ -2,56 +2,49 @@ import Foundation
 import SceneKit
 import UIKit
 
-enum ChestLoot {
-    case shotgun
-    case keyAndMedkit(keyNumber: Int)
-    case finalKeys(key1: Int, key2: Int)
+public enum ChestLootReward {
+    case weapon(item: WeaponItem)
+    case medkitAndAmmo(hp: Float, bonusAmmo: Int)
 }
 
-struct ChestItem {
-    let id: Int
-    let position: SCNVector3
-    let baseNode: SCNNode
-    let lidNode: SCNNode
-    let loot: ChestLoot
-    var isOpen: Bool = false
+public struct ChestItem {
+    public let id: Int
+    public let position: SCNVector3
+    public let baseNode: SCNNode
+    public let lidNode: SCNNode
+    public let loot: ChestLootReward
+    public var isOpen: Bool = false
 }
 
-class ChestManager {
+public class ChestManager {
     private let scene: SCNScene
-    var chests: [ChestItem] = []
+    public private(set) var chests: [ChestItem] = []
 
-    init(scene: SCNScene, locations: [(position: SCNVector3, cabinIndex: Int)]) {
+    public init(scene: SCNScene, locations: [(position: SCNVector3, id: Int)]) {
         self.scene = scene
         spawnChests(locations: locations)
     }
 
-    private func spawnChests(locations: [(position: SCNVector3, cabinIndex: Int)]) {
-        let loots: [ChestLoot] = [
-            .shotgun,
-            .keyAndMedkit(keyNumber: 1),
-            .finalKeys(key1: 2, key2: 3)
-        ]
-
-        for (idx, loc) in locations.enumerated() {
+    private func spawnChests(locations: [(position: SCNVector3, id: Int)]) {
+        for loc in locations {
             let chestRoot = SCNNode()
-            chestRoot.name = "ChestRoot_\(idx + 1)"
+            chestRoot.name = "ChestRoot_\(loc.id)"
             chestRoot.position = loc.position
 
             let base = loadChestPart(named: "chest_base")
             chestRoot.addChildNode(base)
 
-            // Il coperchio è posizionato con il cardine posteriore su z = 0.25, y = 0.40
+            // Il coperchio incernierato sul retro (z = 0.25, y = 0.40)
             let lid = loadChestPart(named: "chest_lid")
             lid.position = SCNVector3(0, 0.40, 0.25)
             chestRoot.addChildNode(lid)
 
-            // Luce dorata interna al baule (inizialmente spenta)
+            // Luce dorata interna al forziere
             let chestLight = SCNLight()
             chestLight.type = .omni
-            chestLight.color = UIColor(red: 1.0, green: 0.85, blue: 0.2, alpha: 1.0)
+            chestLight.color = UIColor(red: 1.0, green: 0.85, blue: 0.20, alpha: 1.0)
             chestLight.intensity = 0
-            chestLight.attenuationEndDistance = 4.0
+            chestLight.attenuationEndDistance = 4.5
 
             let lightNode = SCNNode()
             lightNode.name = "ChestLight"
@@ -61,13 +54,32 @@ class ChestManager {
 
             scene.rootNode.addChildNode(chestRoot)
 
-            let loot = idx < loots.count ? loots[idx] : .keyAndMedkit(keyNumber: idx + 1)
-            let item = ChestItem(id: idx + 1, position: loc.position, baseNode: base, lidNode: lid, loot: loot, isOpen: false)
+            // Assegnazione bottino tematico
+            let reward: ChestLootReward = {
+                switch loc.id {
+                case 1:
+                    // Saloon: Doppietta rara o epica
+                    return .weapon(item: WeaponItem(kind: .shotgun, rarity: .rare))
+                case 2:
+                    // Ufficio Sceriffo: Winchester 1873
+                    return .weapon(item: WeaponItem(kind: .rifle, rarity: .rare))
+                case 3:
+                    // Cimitero: Fucile da cecchino Sharps epico
+                    return .weapon(item: WeaponItem(kind: .sniper, rarity: .epic))
+                case 4:
+                    // Miniera d'Oro: Candelotto di Dinamite Leggendario
+                    return .weapon(item: WeaponItem(kind: .dynamite, rarity: .legendary))
+                default:
+                    return .medkitAndAmmo(hp: 50, bonusAmmo: 24)
+                }
+            }()
+
+            let item = ChestItem(id: loc.id, position: loc.position, baseNode: base, lidNode: lid, loot: reward, isOpen: false)
             chests.append(item)
         }
     }
 
-    func checkNearbyChest(playerPosition: SCNVector3, radius: Float = 2.4) -> ChestItem? {
+    public func checkNearbyChest(playerPosition: SCNVector3, radius: Float = 2.8) -> ChestItem? {
         for chest in chests where !chest.isOpen {
             let dx = playerPosition.x - chest.position.x
             let dz = playerPosition.z - chest.position.z
@@ -80,36 +92,49 @@ class ChestManager {
         return nil
     }
 
-    func openChest(id: Int, completion: @escaping (ChestLoot) -> Void) {
+    public func openChest(id: Int, completion: @escaping (ChestLootReward) -> Void) {
         guard let index = chests.firstIndex(where: { $0.id == id && !$0.isOpen }) else { return }
         chests[index].isOpen = true
 
         let lid = chests[index].lidNode
 
-        // Animazione rotazione cardine coperchio
+        // Animazione rotazione coperchio
         let openAction = SCNAction.rotateBy(x: CGFloat(-Float.pi * 0.48), y: 0, z: 0, duration: 0.55)
         openAction.timingMode = .easeOut
         lid.runAction(openAction)
 
-        // Accensione luce tesoro
+        // Luce oro ad alta intensità
         if let lightNode = lid.parent?.childNode(withName: "ChestLight", recursively: false) {
-            lightNode.light?.intensity = 1500
+            lightNode.light?.intensity = 1800
         }
 
         let loot = chests[index].loot
         completion(loot)
     }
 
-    private func loadChestPart(named partName: String) -> SCNNode {
-        if let url = Bundle.main.url(forResource: partName, withExtension: "obj"),
-           let scene = try? SCNScene(url: url, options: [.checkConsistency: false]) {
-            let wrapper = SCNNode()
-            for child in scene.rootNode.childNodes {
-                wrapper.addChildNode(child.clone())
+    public func resetChests() {
+        for i in 0..<chests.count {
+            if chests[i].isOpen {
+                chests[i].isOpen = false
+                chests[i].lidNode.eulerAngles = SCNVector3Zero
+                if let lightNode = chests[i].lidNode.parent?.childNode(withName: "ChestLight", recursively: false) {
+                    lightNode.light?.intensity = 0
+                }
             }
-            return wrapper
         }
-        let box = SCNBox(width: 0.8, height: 0.4, length: 0.5, chamferRadius: 0.02)
+    }
+
+    private func loadChestPart(named name: String) -> SCNNode {
+        if let url = Bundle.main.url(forResource: name, withExtension: "obj") {
+            if let objScene = try? SCNScene(url: url, options: [.checkConsistency: false]) {
+                let wrapper = SCNNode()
+                for child in objScene.rootNode.childNodes {
+                    wrapper.addChildNode(child.clone())
+                }
+                return wrapper
+            }
+        }
+        let box = SCNBox(width: 0.9, height: 0.5, length: 0.6, chamferRadius: 0.02)
         return SCNNode(geometry: box)
     }
 }
