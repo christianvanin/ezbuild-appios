@@ -1,0 +1,13 @@
+[90m╭───────────────────────────────────────────────────────────────╮[0m
+[90m│[0m                                                               [90m│[0m
+[90m│[0m          [34m    <}    _ [0m                                         [90m│[0m
+[90m│[0m          [34m  ,--\,-("\ [0m       [37mEzBuild CLI v0.1.0[0m                [90m│[0m
+[90m│[0m          [34m / #     ) )[0m       [36mUnsigned iOS IPA Builder[0m          [90m│[0m
+[90m│[0m          [34m(       (_/)[0m       [90m(C) 2026 EzDev Studio[0m             [90m│[0m
+[90m│[0m          [34m \        / [0m       [90mAll rights reserved.[0m              [90m│[0m
+[90m│[0m          [34m  `._,._,'  [0m                                         [90m│[0m
+[90m│[0m                                                               [90m│[0m
+[90m╰───────────────────────────────────────────────────────────────╯[0m
+[i] Analyzing project structure...
+[✓] Detected: Native iOS / Swift project (SheriffGame)
+[✓] Token retrieved successfully (C:\Users\vanin\.ezbuild_token).
