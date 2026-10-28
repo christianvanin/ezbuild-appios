@@ -1,8 +1,7 @@
-name: Build iOS IPA (Native Xcode)
+name: Build IPA
 
 on:
   push:
-    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
@@ -70,19 +69,19 @@ jobs:
             exit 1
           fi
           cp -r "$APP_PATH" Payload/
-          zip -r "SheriffGame-Unsigned.ipa" Payload
+          zip -r "SheriffGame.ipa" Payload
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa
-          path: SheriffGame-Unsigned.ipa
+          path: SheriffGame.ipa
 
       - name: Publish GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release delete latest -y 2>/dev/null || true
-          gh release create latest "SheriffGame-Unsigned.ipa" \
-            --title "Sheriff vs Zombies - Latest iOS Build" \
-            --notes "Compilazione automatica completata con successo tramite EzBuild."
+          gh release create latest "SheriffGame.ipa" \
+            --title "Latest Build" \
+            --notes "Auto-generated unsigned IPA by EzBuild CLI"
