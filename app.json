@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "CrossPlatformGame",
+    "slug": "cross-platform-game",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.crossplatform.game"
+    },
+    "android": {
+      "package": "com.crossplatform.game"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

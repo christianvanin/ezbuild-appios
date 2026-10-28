@@ -1,89 +1,67 @@
 name: Build IPA
-
 on:
   push:
   workflow_dispatch:
-
 jobs:
   build:
-    name: Build Native iOS App
     runs-on: macos-latest
     permissions:
       contents: write
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install CocoaPods (se presente Podfile)
-        run: |
-          if [ -f "Podfile" ]; then
-            pod install
-          elif [ -f "ios/Podfile" ]; then
-            cd ios && pod install
-          fi
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - name: Select Xcode Version
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-deps-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-deps-
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Expo Prebuild
+        run: npx expo prebuild -p ios --no-install
+
+      - name: Install CocoaPods
+        run: cd ios && pod install
+
+      - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_15.4.app || sudo xcode-select -s /Applications/Xcode.app
 
-      - name: Resolve Project & Scheme
-        id: resolve
+      - name: Resolve Xcode scheme
+        id: scheme
         run: |
-          if [ -d *.xcworkspace ] || [ -d ios/*.xcworkspace ]; then
-            WS=$(ls -d *.xcworkspace 2>/dev/null || ls -d ios/*.xcworkspace 2>/dev/null | head -1)
-            TARGET_ARG="-workspace $WS"
-            WORK_DIR=$(dirname "$WS")
-          else
-            PROJ=$(ls -d *.xcodeproj 2>/dev/null || ls -d ios/*.xcodeproj 2>/dev/null | head -1)
-            TARGET_ARG="-project $PROJ"
-            WORK_DIR=$(dirname "$PROJ")
-          fi
-          
-          SCHEME=$(xcodebuild -list $TARGET_ARG -json 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); k=list(d.keys())[0]; print(d[k]['schemes'][0])" 2>/dev/null || echo "")
-          if [ -z "$SCHEME" ]; then
-            SCHEME=$(basename "$TARGET_ARG" | sed 's/\.xcodeproj//' | sed 's/\.xcworkspace//')
-          fi
+          SCHEME=$(ls -d ios/*.xcworkspace | head -1 | xargs basename | sed 's/\.xcworkspace//')
+          echo "name=$SCHEME" >> "$GITHUB_OUTPUT"
+          echo "Using scheme: $SCHEME"
 
-          echo "target_arg=$TARGET_ARG" >> "$GITHUB_OUTPUT"
-          echo "work_dir=$WORK_DIR" >> "$GITHUB_OUTPUT"
-          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
-          echo "Compiling $TARGET_ARG with Scheme: $SCHEME in dir $WORK_DIR"
-
-      - name: Build iOS (Unsigned)
+      - name: Build iOS
         run: |
-          xcodebuild \
-            ${{ steps.resolve.outputs.target_arg }} \
-            -scheme "${{ steps.resolve.outputs.scheme }}" \
+          cd ios && xcodebuild \
+            -workspace *.xcworkspace \
+            -scheme "${{ steps.scheme.outputs.name }}" \
             -configuration Release \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
             -sdk iphoneos \
             -derivedDataPath build \
             build
 
-      - name: Package Payload into IPA
+      - name: Package IPA
         run: |
           mkdir -p Payload
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 | head -1)
-          if [ -z "$APP_PATH" ]; then
-            echo "Errore: Nessun bundle .app trovato!"
-            exit 1
-          fi
-          cp -r "$APP_PATH" Payload/
-          zip -r "SheriffGame.ipa" Payload
+          cp -r ios/build/Build/Products/Release-iphoneos/*.app Payload/
+          zip -r "CrossPlatformGame.ipa" Payload
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-ipa
-          path: SheriffGame.ipa
-
-      - name: Publish GitHub Release
+      - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release delete latest -y 2>/dev/null || true
-          gh release create latest "SheriffGame.ipa" \
-            --title "Latest Build" \
-            --notes "Auto-generated unsigned IPA by EzBuild CLI"
+          gh release create latest "CrossPlatformGame.ipa" --title "Latest Build" --notes "Auto-generated unsigned IPA by EzBuild CLI"
